@@ -1,0 +1,6 @@
+/* FRAGMENT — only the first 5 lines of the original were seen before it was overwritten */
+:root {
+  --text: #6b6375;
+  --text-h: #08060d;
+  --bg: #fff;
+  --border: #e5e4e7;
