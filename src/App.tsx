@@ -1,14 +1,7 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { deleteItem, getAllItems, putItem, requestPersistence, type Item } from './db'
-
-function timeAgo(ts: number): string {
-  const s = (Date.now() - ts) / 1000
-  if (s < 60) return 'now'
-  if (s < 3600) return `${Math.floor(s / 60)}m`
-  if (s < 86400) return `${Math.floor(s / 3600)}h`
-  return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-}
+import { timeAgo } from './time'
 
 const Row = memo(function Row({
   item,

@@ -32,7 +32,19 @@ npx vite preview     # serve dist/ locally
 
 Install on iOS: open in Safari → Share → Add to Home Screen.
 
-## Testing notes
+## Tests & CI
+
+```sh
+npm run test         # vitest (jsdom + fake-indexeddb)
+npm run check        # lint + typecheck + test + build, same as CI
+```
+
+GitHub Actions runs lint → typecheck → test → build on every push and PR
+(`.github/workflows/ci.yml`) and uploads the built `dist/` as a deployable
+artifact. Pushing a `v*` tag builds and attaches a `dist` tarball to a GitHub
+Release (`.github/workflows/release.yml`) — grab it to deploy on the Mac Mini.
+
+## Manual testing notes
 
 Verified interactively (30 checks): add flows (trim/whitespace-reject/unicode/
 XSS-as-text/multiline measurement/rapid adds), toggle + delete + empty state,
