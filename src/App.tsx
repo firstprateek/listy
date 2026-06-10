@@ -41,7 +41,15 @@ export default function App() {
   const scrollerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    getAllItems().then(setItems)
+    // Merge instead of replace: items added before the initial load resolves
+    // (they're already in the DB) must not be dropped from state.
+    getAllItems().then((fromDb) => {
+      setItems((prev) => {
+        if (!prev) return fromDb
+        const ids = new Set(prev.map((it) => it.id))
+        return [...prev, ...fromDb.filter((it) => !ids.has(it.id))]
+      })
+    })
     requestPersistence()
   }, [])
 
