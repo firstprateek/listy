@@ -1,9 +1,12 @@
 # Listy
 
 [![CI](https://github.com/firstprateek/listy/actions/workflows/ci.yml/badge.svg)](https://github.com/firstprateek/listy/actions/workflows/ci.yml)
+[![Deploy](https://github.com/firstprateek/listy/actions/workflows/deploy-pages.yml/badge.svg)](https://github.com/firstprateek/listy/actions/workflows/deploy-pages.yml)
 
 A personal infinite-list tracker for anything on your mind. Installable PWA,
 local-first, built for scroll performance.
+
+**[Live demo → firstprateek.github.io/listy](https://firstprateek.github.io/listy/)**
 
 ## Stack
 
