@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "check": "npm run lint && npm run typecheck && npm run test && npm run build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "prepare": "node -e \"process.env.CI||require('child_process').execSync('git config core.hooksPath .githooks')\""
   },
   "dependencies": {
     "@tanstack/react-virtual": "^3.14.2",

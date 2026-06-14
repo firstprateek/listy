@@ -4,6 +4,10 @@ on:
   push:
     tags: ['v*']
 
+# Serialize releases for the same tag without cancelling an in-flight upload.
+concurrency:
+  group: release-${{ github.ref }}
+
 permissions:
   contents: write
 
@@ -29,10 +33,16 @@ jobs:
         run: npx vite build
 
       - name: Package dist
-        run: tar -czf listy-${{ github.ref_name }}.tar.gz -C dist .
+        run: |
+          tar -czf listy-${{ github.ref_name }}.tar.gz -C dist .
+          sha256sum listy-${{ github.ref_name }}.tar.gz > listy-${{ github.ref_name }}.tar.gz.sha256
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v3
+        # Third-party action pinned to a commit SHA (v3) — a write-token job
+        # must not run a mutable floating tag. Bump the SHA when updating.
+        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3
         with:
-          files: listy-${{ github.ref_name }}.tar.gz
+          files: |
+            listy-${{ github.ref_name }}.tar.gz
+            listy-${{ github.ref_name }}.tar.gz.sha256
           generate_release_notes: true

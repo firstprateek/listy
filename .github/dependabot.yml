@@ -1,0 +1,22 @@
+version: 2
+updates:
+  # npm dependencies — group routine minor/patch bumps into one weekly PR;
+  # majors come as individual PRs so a breaking bump is easy to isolate.
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      npm-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    open-pull-requests-limit: 5
+
+  # GitHub Actions used by ci.yml / release.yml — keep them current too.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      actions-all:
+        patterns: ["*"]

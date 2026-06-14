@@ -1,0 +1,5 @@
+#!/bin/sh
+# Pre-push gate: run the fast CI checks before a push leaves the machine.
+# Build is intentionally left to CI/release (release.yml gates it server-side).
+# Bypass in a pinch with: git push --no-verify
+npm run lint && npm run typecheck && npm run test

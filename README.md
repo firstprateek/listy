@@ -1,5 +1,7 @@
 # Listy
 
+[![CI](https://github.com/firstprateek/listy/actions/workflows/ci.yml/badge.svg)](https://github.com/firstprateek/listy/actions/workflows/ci.yml)
+
 A personal infinite-list tracker for anything on your mind. Installable PWA,
 local-first, built for scroll performance.
 
@@ -39,10 +41,21 @@ npm run test         # vitest (jsdom + fake-indexeddb)
 npm run check        # lint + typecheck + test + build, same as CI
 ```
 
-GitHub Actions runs lint → typecheck → test → build on every push and PR
-(`.github/workflows/ci.yml`) and uploads the built `dist/` as a deployable
-artifact. Pushing a `v*` tag builds and attaches a `dist` tarball to a GitHub
-Release (`.github/workflows/release.yml`) — grab it to deploy on the Mac Mini.
+GitHub Actions runs audit → lint → typecheck → test → build on every push and
+PR (`.github/workflows/ci.yml`) and uploads the built `dist/` as a deployable
+artifact. Pushing a `v*` tag builds and attaches a `dist` tarball plus its
+`.sha256` checksum to a GitHub Release (`.github/workflows/release.yml`) — grab
+it to deploy on the Mac Mini and verify with `shasum -a 256 -c`.
+
+A git **pre-push hook** (`.githooks/pre-push`) runs lint + typecheck + test
+before every push so broken code never leaves your machine; it self-installs
+via the `prepare` script on `npm install`. Bypass once with `git push
+--no-verify`. **Dependabot** (`.github/dependabot.yml`) opens grouped weekly
+PRs for npm and Actions updates, which CI validates automatically.
+
+> Note: branch protection / required status checks are paywalled for private
+> repos on the free plan, so the pre-push hook is the enforcement mechanism
+> here. CI still re-checks everything server-side within ~30 s of a push.
 
 ## Manual testing notes
 
