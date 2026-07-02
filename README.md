@@ -45,8 +45,12 @@ npm run check        # lint + typecheck + test + build, same as CI
 ```
 
 GitHub Actions runs audit → lint → typecheck → test → build on every push and
-PR (`.github/workflows/ci.yml`) and uploads the built `dist/` as a deployable
-artifact. Pushing a `v*` tag builds and attaches a `dist` tarball plus its
+PR (`.github/workflows/ci.yml`) and uploads the built `dist/` as a
+`listy-dist-root-<sha>` artifact. That artifact is built with base `/` for
+serving at a domain root (local / Mac Mini) — it is **not** usable under the
+GitHub Pages `/listy/` subpath; the Pages deploy
+(`.github/workflows/deploy-pages.yml`) rebuilds with `BASE_PATH=/listy/`
+instead. Pushing a `v*` tag builds and attaches a `dist` tarball plus its
 `.sha256` checksum to a GitHub Release (`.github/workflows/release.yml`) — grab
 it to deploy on the Mac Mini and verify with `shasum -a 256 -c`.
 

@@ -40,12 +40,17 @@ jobs:
       - name: Test
         run: npm run test
 
-      - name: Build
+      # Built with base '/' for root deployment (local / Mac Mini release).
+      # NOT usable under the GitHub Pages /listy/ subpath — deploy-pages.yml
+      # rebuilds with BASE_PATH=/listy/ for that.
+      - name: Build (root base path)
         run: npx vite build
+        env:
+          BASE_PATH: '/'
 
       - name: Upload dist artifact
         uses: actions/upload-artifact@v7
         with:
-          name: listy-dist-${{ github.sha }}
+          name: listy-dist-root-${{ github.sha }}
           path: dist/
           retention-days: 14
