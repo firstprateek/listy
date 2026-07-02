@@ -29,6 +29,9 @@ export default defineConfig({
           { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
+      // Serve the manifest (and register the SW) in dev too, so `npm run dev`
+      // behaves like the production build instead of falling back to SPA HTML.
+      devOptions: { enabled: true },
     }),
   ],
   test: {
