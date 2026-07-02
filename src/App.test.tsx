@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import App from './App'
 import { deleteItem, getAllItems, putItem, type Item } from './db'
 
@@ -168,6 +169,147 @@ describe('App', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('keeps items added while the initial load is pending, without duplicating them', async () => {
+    // Simulate a slow device: getAllItems hangs while the user starts typing.
+    let resolveLoad!: (items: Item[]) => void
+    vi.mocked(getAllItems).mockReturnValueOnce(
+      new Promise<Item[]>((resolve) => {
+        resolveLoad = resolve
+      }),
+    )
+    const { container } = render(<App />)
+    expect(screen.getByText('Loading…')).toBeInTheDocument()
+    await addViaForm(container, 'quick thought')
+    expect(await screen.findByText('quick thought')).toBeInTheDocument()
+    // The add persisted via the real putItem even though the load is pending.
+    const saved = await getAllItems()
+    expect(saved.map((it) => it.text)).toEqual(['quick thought'])
+    // The load resolves late and even includes the just-added item (a slow read
+    // can snapshot after the write commits): merge must dedupe by id, not drop.
+    resolveLoad([...saved, mk('from before', 500)])
+    expect(await screen.findByText('from before')).toBeInTheDocument()
+    expect(screen.getAllByText('quick thought')).toHaveLength(1)
+    expect(screen.getByText('2 items')).toBeInTheDocument()
+  })
+
+  it('adds an item when Enter is pressed in the composer', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await screen.findByText(/Nothing here yet/)
+    await user.type(screen.getByLabelText('New item'), 'typed with enter{Enter}')
+    expect(await screen.findByText('typed with enter')).toBeInTheDocument()
+    expect(screen.getByLabelText('New item')).toHaveValue('')
+    const all = await getAllItems()
+    expect(all.map((it) => it.text)).toEqual(['typed with enter'])
+  })
+
+  it('persists adds and toggles across a reload (unmount and remount)', async () => {
+    const first = render(<App />)
+    await screen.findByText(/Nothing here yet/)
+    await addViaForm(first.container, 'survives reload')
+    await screen.findByText('survives reload')
+    fireEvent.click(screen.getByRole('button', { name: 'Mark as done' }))
+    await screen.findByRole('button', { name: 'Mark as not done' })
+    // Let the fire-and-forget writes commit before "closing the tab".
+    await waitFor(async () => expect((await getAllItems())[0]?.done).toBe(true))
+    first.unmount()
+
+    render(<App />)
+    expect(await screen.findByText('survives reload')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Mark as not done' })).toBeInTheDocument()
+    expect(screen.getByText('1 item · 1 done')).toBeInTheDocument()
+  })
+
+  it('keeps the empty state after the last item is deleted, across a reload', async () => {
+    await putItem(mk('ephemeral', 1000))
+    const first = render(<App />)
+    await screen.findByText('ephemeral')
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    await screen.findByText(/Nothing here yet/)
+    await waitFor(async () => expect(await getAllItems()).toHaveLength(0))
+    first.unmount()
+
+    render(<App />)
+    expect(await screen.findByText(/Nothing here yet/)).toBeInTheDocument()
+    expect(screen.getByText('empty')).toBeInTheDocument()
+    expect(screen.queryByText('ephemeral')).not.toBeInTheDocument()
+  })
+
+  it('reverts the toggle and shows an error when the save fails', async () => {
+    await putItem(mk('stubborn', 1000))
+    render(<App />)
+    await screen.findByText('stubborn')
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.mocked(putItem).mockRejectedValueOnce(
+      new DOMException('Quota exceeded', 'QuotaExceededError'),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Mark as done' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(/couldn't save/i)
+    expect(screen.getByRole('button', { name: 'Mark as done' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Mark as not done' })).not.toBeInTheDocument()
+    expect(screen.queryByText(/1 done/)).not.toBeInTheDocument()
+    expect((await getAllItems())[0].done).toBe(false)
+    expect(errorSpy).toHaveBeenCalled()
+    errorSpy.mockRestore()
+  })
+
+  it('does not clobber a newer toggle when an older toggle save fails late', async () => {
+    await putItem(mk('flip flop', 1000))
+    render(<App />)
+    await screen.findByText('flip flop')
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    // First toggle's save hangs; we fail it after a second toggle already won.
+    let rejectFirstSave!: (err: unknown) => void
+    vi.mocked(putItem).mockImplementationOnce(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectFirstSave = reject
+        }),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Mark as done' }))
+    // Second toggle (back to not-done) goes through the real putItem.
+    fireEvent.click(await screen.findByRole('button', { name: 'Mark as not done' }))
+    await screen.findByRole('button', { name: 'Mark as done' })
+    await waitFor(async () => expect((await getAllItems())[0].done).toBe(false))
+    // Now the stale save fails: the revert must not resurrect done=true.
+    await act(async () => {
+      rejectFirstSave(new DOMException('late failure', 'UnknownError'))
+    })
+    expect(await screen.findByRole('alert')).toHaveTextContent(/couldn't save/i)
+    expect(screen.getByRole('button', { name: 'Mark as done' })).toBeInTheDocument()
+    expect(screen.queryByText(/1 done/)).not.toBeInTheDocument()
+    expect((await getAllItems())[0].done).toBe(false)
+    expect(errorSpy).toHaveBeenCalled()
+    errorSpy.mockRestore()
+  })
+
+  it('virtualizes 20,000 items: bounded DOM, correct total height, far jumps render', async () => {
+    const many: Item[] = Array.from({ length: 20_000 }, (_, i) => ({
+      id: `bulk-${i}`,
+      text: `bulk note ${i}`,
+      done: false,
+      createdAt: 100_000_000 - i,
+    }))
+    vi.mocked(getAllItems).mockResolvedValueOnce(many)
+    render(<App />)
+    expect(await screen.findByText('bulk note 0')).toBeInTheDocument()
+    expect(screen.getByText('20000 items')).toBeInTheDocument()
+    // Only a window of rows is mounted (600px viewport / 56px rows + overscan 12).
+    const mounted = document.querySelectorAll('.row-slot').length
+    expect(mounted).toBeGreaterThan(0)
+    expect(mounted).toBeLessThan(60)
+    // Scrollable area accounts for every row.
+    const list = document.querySelector<HTMLElement>('.list')!
+    expect(list.style.height).toBe(`${20_000 * 56}px`)
+    // Jump deep into the list: the window follows, DOM stays bounded.
+    const scroller = document.querySelector<HTMLElement>('.scroller')!
+    scroller.scrollTop = 10_000 * 56
+    fireEvent.scroll(scroller)
+    expect(await screen.findByText('bulk note 10000')).toBeInTheDocument()
+    expect(screen.queryByText('bulk note 0')).not.toBeInTheDocument()
+    expect(document.querySelectorAll('.row-slot').length).toBeLessThan(60)
   })
 
   it('restores the item in place and shows an error when the delete fails', async () => {
