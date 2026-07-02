@@ -1,7 +1,11 @@
+import { readFileSync } from 'node:fs'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 import App from './App'
 import { deleteItem, getAllItems, putItem, type Item } from './db'
+
+// Read the stylesheet directly: vitest replaces CSS imports (even ?raw) with empty modules.
+const css = readFileSync('src/index.css', 'utf8')
 
 const mk = (text: string, createdAt: number, done = false): Item => ({
   id: crypto.randomUUID(),
@@ -96,5 +100,40 @@ describe('App', () => {
     await putItem(mk('b', 2000))
     render(<App />)
     expect(await screen.findByText('2 items · 1 done')).toBeInTheDocument()
+  })
+})
+
+// WCAG relative luminance + contrast ratio (https://www.w3.org/TR/WCAG21/#dfn-contrast-ratio)
+function getContrastRatio(hexA: string, hexB: string): number {
+  const luminance = (hex: string) => {
+    const [r, g, b] = [1, 3, 5].map((i) => {
+      const c = parseInt(hex.slice(i, i + 2), 16) / 255
+      return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+    })
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+  }
+  const [hi, lo] = [luminance(hexA), luminance(hexB)].sort((a, b) => b - a)
+  return (hi + 0.05) / (lo + 0.05)
+}
+
+describe('stylesheet accessibility', () => {
+  it('light-mode muted text meets WCAG AA (4.5:1) on surface and background', () => {
+    // First --muted declaration is the light theme (dark override lives in a media query below it).
+    const muted = css.match(/--muted:\s*(#[0-9a-fA-F]{6})/)![1]
+    expect(getContrastRatio(muted, '#ffffff')).toBeGreaterThanOrEqual(4.5)
+    expect(getContrastRatio(muted, '#fafafa')).toBeGreaterThanOrEqual(4.5)
+  })
+
+  it('defines keyboard focus indicators and a reduced-motion fallback', () => {
+    expect(css).toContain(':focus-visible')
+    expect(css).toContain('@media (prefers-reduced-motion: reduce)')
+  })
+
+  it('gives the check and delete buttons a 44px minimum hit area', () => {
+    for (const selector of ['.check', '.delete']) {
+      const block = css.match(new RegExp(`\\${selector} \\{[^}]*\\}`))?.[0]
+      expect(block).toMatch(/min-width: 44px/)
+      expect(block).toMatch(/min-height: 44px/)
+    }
   })
 })
