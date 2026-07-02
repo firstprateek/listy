@@ -5,10 +5,12 @@ import { timeAgo } from './time'
 
 const Row = memo(function Row({
   item,
+  now,
   onToggle,
   onDelete,
 }: {
   item: Item
+  now: number
   onToggle: (item: Item) => void
   onDelete: (item: Item) => void
 }) {
@@ -20,7 +22,7 @@ const Row = memo(function Row({
         onClick={() => onToggle(item)}
       />
       <span className="text">{item.text}</span>
-      <span className="time">{timeAgo(item.createdAt)}</span>
+      <span className="time">{timeAgo(item.createdAt, now)}</span>
       <button className="delete" aria-label="Delete" onClick={() => onDelete(item)}>
         ✕
       </button>
@@ -32,6 +34,9 @@ export default function App() {
   const [items, setItems] = useState<Item[] | null>(null)
   const [draft, setDraft] = useState('')
   const [saveError, setSaveError] = useState<string | null>(null)
+  // Single clock for every row's relative timestamp; ticking it re-renders the
+  // visible (virtualized) rows once a minute so "now"/"3m" stays truthful.
+  const [now, setNow] = useState(() => Date.now())
   const scrollerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -46,6 +51,11 @@ export default function App() {
       })
     })
     requestPersistence()
+  }, [])
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 60_000)
+    return () => clearInterval(id)
   }, [])
 
   const loaded = items ?? []
@@ -140,7 +150,9 @@ export default function App() {
       )}
 
       <div className="scroller" ref={scrollerRef}>
-        {items !== null && loaded.length === 0 ? (
+        {items === null ? (
+          <p className="empty">Loading…</p>
+        ) : loaded.length === 0 ? (
           <p className="empty">Nothing here yet. Type something above — it stays on this device.</p>
         ) : (
           <div className="list" style={{ height: virtualizer.getTotalSize() }}>
@@ -152,7 +164,7 @@ export default function App() {
                 ref={virtualizer.measureElement}
                 style={{ transform: `translateY(${vi.start}px)` }}
               >
-                <Row item={loaded[vi.index]} onToggle={toggleItem} onDelete={removeItem} />
+                <Row item={loaded[vi.index]} now={now} onToggle={toggleItem} onDelete={removeItem} />
               </div>
             ))}
           </div>

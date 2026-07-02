@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import App from './App'
 import { deleteItem, getAllItems, putItem, type Item } from './db'
 
@@ -31,6 +31,22 @@ describe('App', () => {
     render(<App />)
     expect(await screen.findByText(/Nothing here yet/)).toBeInTheDocument()
     expect(screen.getByText('empty')).toBeInTheDocument()
+  })
+
+  it('shows a loading state, not an empty list, until the initial load resolves', async () => {
+    let resolveLoad!: (items: Item[]) => void
+    vi.mocked(getAllItems).mockReturnValueOnce(
+      new Promise<Item[]>((resolve) => {
+        resolveLoad = resolve
+      }),
+    )
+    render(<App />)
+    expect(screen.getByText('Loading…')).toBeInTheDocument()
+    expect(document.querySelector('.list')).not.toBeInTheDocument()
+    expect(screen.queryByText(/Nothing here yet/)).not.toBeInTheDocument()
+    resolveLoad([mk('eventual note', 1000)])
+    expect(await screen.findByText('eventual note')).toBeInTheDocument()
+    expect(screen.queryByText('Loading…')).not.toBeInTheDocument()
   })
 
   it('loads existing items from the database, newest first', async () => {
@@ -131,6 +147,27 @@ describe('App', () => {
     expect(await getAllItems()).toHaveLength(0)
     expect(errorSpy).toHaveBeenCalled()
     errorSpy.mockRestore()
+  })
+
+  it('keeps relative timestamps fresh as time passes', async () => {
+    const createdAt = new Date('2026-06-10T12:00:00Z').getTime()
+    // Fake timers must be on before render so the ticker interval lands on the
+    // fake clock; the initial load resolves via microtasks, which stay real.
+    vi.useFakeTimers({ now: createdAt })
+    vi.mocked(getAllItems).mockResolvedValueOnce([mk('aging note', createdAt)])
+    try {
+      render(<App />)
+      await act(async () => {})
+      expect(screen.getByText('aging note')).toBeInTheDocument()
+      expect(screen.getByText('now')).toBeInTheDocument()
+      act(() => {
+        vi.advanceTimersByTime(65_000)
+      })
+      expect(screen.getByText('1m')).toBeInTheDocument()
+      expect(screen.queryByText('now')).not.toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('restores the item in place and shows an error when the delete fails', async () => {
