@@ -110,6 +110,13 @@ header h1 {
   cursor: default;
 }
 
+.save-error {
+  margin: 0;
+  padding: 0 16px 8px;
+  font-size: 13px;
+  color: var(--danger);
+}
+
 .scroller {
   flex: 1;
   overflow-y: auto;

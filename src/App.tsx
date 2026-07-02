@@ -10,7 +10,7 @@ const Row = memo(function Row({
 }: {
   item: Item
   onToggle: (item: Item) => void
-  onDelete: (id: string) => void
+  onDelete: (item: Item) => void
 }) {
   return (
     <div className={`row${item.done ? ' done' : ''}`}>
@@ -21,7 +21,7 @@ const Row = memo(function Row({
       />
       <span className="text">{item.text}</span>
       <span className="time">{timeAgo(item.createdAt)}</span>
-      <button className="delete" aria-label="Delete" onClick={() => onDelete(item.id)}>
+      <button className="delete" aria-label="Delete" onClick={() => onDelete(item)}>
         ✕
       </button>
     </div>
@@ -31,6 +31,7 @@ const Row = memo(function Row({
 export default function App() {
   const [items, setItems] = useState<Item[] | null>(null)
   const [draft, setDraft] = useState('')
+  const [saveError, setSaveError] = useState<string | null>(null)
   const scrollerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -63,19 +64,40 @@ export default function App() {
     const item: Item = { id: crypto.randomUUID(), text, done: false, createdAt: Date.now() }
     setItems((prev) => [item, ...(prev ?? [])])
     setDraft('')
-    void putItem(item)
+    setSaveError(null)
+    putItem(item).catch((err) => {
+      console.error('Failed to save item', err)
+      setItems((prev) => (prev ?? []).filter((it) => it.id !== item.id))
+      setSaveError("Couldn't save that item, so it was removed. Your device storage may be full.")
+    })
     virtualizer.scrollToOffset(0)
   }
 
   const toggleItem = useCallback((item: Item) => {
     const updated = { ...item, done: !item.done }
     setItems((prev) => (prev ?? []).map((it) => (it.id === item.id ? updated : it)))
-    void putItem(updated)
+    setSaveError(null)
+    putItem(updated).catch((err) => {
+      console.error('Failed to save item', err)
+      // Revert only if our optimistic object is still current (a newer toggle wins).
+      setItems((prev) => (prev ?? []).map((it) => (it === updated ? item : it)))
+      setSaveError("Couldn't save that change, so it was undone.")
+    })
   }, [])
 
-  const removeItem = useCallback((id: string) => {
-    setItems((prev) => (prev ?? []).filter((it) => it.id !== id))
-    void deleteItem(id)
+  const removeItem = useCallback((item: Item) => {
+    setItems((prev) => (prev ?? []).filter((it) => it.id !== item.id))
+    setSaveError(null)
+    deleteItem(item.id).catch((err) => {
+      console.error('Failed to delete item', err)
+      // Restore the item in its newest-first position.
+      setItems((prev) => {
+        const list = prev ?? []
+        if (list.some((it) => it.id === item.id)) return list
+        return [...list, item].sort((a, b) => b.createdAt - a.createdAt)
+      })
+      setSaveError("Couldn't delete that item, so it was restored.")
+    })
   }, [])
 
   const doneCount = loaded.reduce((n, it) => n + (it.done ? 1 : 0), 0)
@@ -105,6 +127,12 @@ export default function App() {
           +
         </button>
       </form>
+
+      {saveError && (
+        <p className="save-error" role="alert">
+          {saveError}
+        </p>
+      )}
 
       <div className="scroller" ref={scrollerRef}>
         {items !== null && loaded.length === 0 ? (

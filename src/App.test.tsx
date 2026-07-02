@@ -1,8 +1,11 @@
 import { readFileSync } from 'node:fs'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 import App from './App'
 import { deleteItem, getAllItems, putItem, type Item } from './db'
+
+// Wrap the real db functions in spies so individual tests can force failures.
+vi.mock('./db', { spy: true })
 
 // Read the stylesheet directly: vitest replaces CSS imports (even ?raw) with empty modules.
 const css = readFileSync('src/index.css', 'utf8')
@@ -100,6 +103,39 @@ describe('App', () => {
     await putItem(mk('b', 2000))
     render(<App />)
     expect(await screen.findByText('2 items · 1 done')).toBeInTheDocument()
+  })
+
+  it('reverts the optimistic add and shows an error when the save fails', async () => {
+    const { container } = render(<App />)
+    await screen.findByText(/Nothing here yet/)
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.mocked(putItem).mockRejectedValueOnce(
+      new DOMException('Quota exceeded', 'QuotaExceededError'),
+    )
+    await addViaForm(container, 'doomed item')
+    expect(await screen.findByRole('alert')).toHaveTextContent(/couldn't save/i)
+    expect(screen.queryByText('doomed item')).not.toBeInTheDocument()
+    expect(screen.getByText('empty')).toBeInTheDocument()
+    expect(await getAllItems()).toHaveLength(0)
+    expect(errorSpy).toHaveBeenCalled()
+    errorSpy.mockRestore()
+  })
+
+  it('restores the item in place and shows an error when the delete fails', async () => {
+    await putItem(mk('keep', 1000))
+    await putItem(mk('sticky', 2000))
+    render(<App />)
+    await screen.findByText('sticky')
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.mocked(deleteItem).mockRejectedValueOnce(new DOMException('boom', 'UnknownError'))
+    const stickyRow = screen.getByText('sticky').closest('.row')!
+    fireEvent.click(stickyRow.querySelector('.delete')!)
+    expect(await screen.findByRole('alert')).toHaveTextContent(/couldn't delete/i)
+    const texts = [...document.querySelectorAll('.row .text')].map((el) => el.textContent)
+    expect(texts).toEqual(['sticky', 'keep'])
+    expect((await getAllItems()).map((it) => it.text)).toEqual(['sticky', 'keep'])
+    expect(errorSpy).toHaveBeenCalled()
+    errorSpy.mockRestore()
   })
 })
 
