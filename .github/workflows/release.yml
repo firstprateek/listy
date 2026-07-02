@@ -16,7 +16,7 @@ jobs:
     name: Build and attach dist tarball
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v6
         with:
@@ -40,7 +40,7 @@ jobs:
       - name: Create GitHub Release
         # Third-party action pinned to a commit SHA (v3) — a write-token job
         # must not run a mutable floating tag. Bump the SHA when updating.
-        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3
+        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3
         with:
           files: |
             listy-${{ github.ref_name }}.tar.gz
