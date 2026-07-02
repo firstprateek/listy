@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# GitHub Pages build output (deploy-pages.yml rebuilds; local experiments only)
+dist-pages
