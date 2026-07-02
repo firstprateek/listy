@@ -56,6 +56,18 @@ describe('App', () => {
     expect(all[0].text).toBe('buy milk')
   })
 
+  it('keeps focus in the composer after consecutive submissions', async () => {
+    const { container } = render(<App />)
+    await screen.findByText(/Nothing here yet/)
+    const input = screen.getByLabelText('New item')
+    await addViaForm(container, 'first capture')
+    await screen.findByText('first capture')
+    expect(document.activeElement).toBe(input)
+    await addViaForm(container, 'second capture')
+    await screen.findByText('second capture')
+    expect(document.activeElement).toBe(input)
+  })
+
   it('trims surrounding whitespace on add', async () => {
     const { container } = render(<App />)
     await screen.findByText(/Nothing here yet/)

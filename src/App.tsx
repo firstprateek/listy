@@ -33,6 +33,7 @@ export default function App() {
   const [draft, setDraft] = useState('')
   const [saveError, setSaveError] = useState<string | null>(null)
   const scrollerRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     // Merge instead of replace: items added before the initial load resolves
@@ -64,6 +65,8 @@ export default function App() {
     const item: Item = { id: crypto.randomUUID(), text, done: false, createdAt: Date.now() }
     setItems((prev) => [item, ...(prev ?? [])])
     setDraft('')
+    // Keep focus in the composer so the next capture doesn't need a re-tap.
+    inputRef.current?.focus()
     setSaveError(null)
     putItem(item).catch((err) => {
       console.error('Failed to save item', err)
@@ -117,6 +120,8 @@ export default function App() {
 
       <form className="composer" onSubmit={addItem}>
         <input
+          ref={inputRef}
+          autoFocus
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           placeholder="What's on your mind?"
