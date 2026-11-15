@@ -76,3 +76,7 @@ activation, precache, SW-controlled reload persistence).
 
 `_recovered/` preserves files from a pre-existing project found in this
 directory before scaffolding; see its README.
+
+## License
+
+[MIT](LICENSE) © 2026 Prateek Joshi
